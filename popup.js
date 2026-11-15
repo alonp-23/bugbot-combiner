@@ -89,14 +89,14 @@ async function init() {
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
-  if (!tab?.url?.startsWith('https://github.com/')) {
-    showMessage('Open a GitHub pull request to use this extension.');
-    return;
-  }
 
   const state = await send({ type: 'getState' });
   if (!state) {
-    showMessage('Reload this GitHub page so the extension can attach to it.');
+    showMessage(
+      tab?.url && !tab.url.startsWith('https://github.com/')
+        ? 'Open a GitHub pull request to use this extension.'
+        : 'Reload this GitHub page so the extension can attach to it.',
+    );
     return;
   }
   if (!state.onPull) {
