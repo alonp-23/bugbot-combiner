@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="head">
+      <img src="icons/icon48.png" alt="" class="logo" />
+      <div>
+        <div class="title">Bugbot Combiner</div>
+        <div class="subtitle" id="version"></div>
+      </div>
+    </header>
+
+    <div id="message" class="message" hidden></div>
+
+    <main id="content" hidden>
+      <section class="section">
+        <div class="section-title">Review comments</div>
+        <div class="tabs" id="tabs"></div>
+        <textarea id="output" class="output" readonly></textarea>
+        <div class="row end">
+          <button id="diagnostics" class="btn ghost" type="button">Token info</button>
+          <button id="copy" class="btn primary" type="button">Copy all</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">Files changed</div>
+        <div id="files-hint" class="hint" hidden>Open the “Files changed” tab to mark files as viewed.</div>
+        <div id="files-actions">
+          <button id="mark-noise" class="btn block" type="button" data-mode="noise">
+            Mark i18n / tests / help-center viewed
+          </button>
+          <div class="row">
+            <button class="btn grow" type="button" data-mode="viewed">Mark all viewed</button>
+            <button class="btn grow" type="button" data-mode="unviewed">Mark all unviewed</button>
+          </div>
+          <div id="mark-status" class="hint"></div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" id="auto" />
+          <span class="switch"></span>
+          <span>Auto-mark i18n / tests / help-center when I open a PR</span>
+        </label>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
