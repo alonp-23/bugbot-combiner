@@ -78,8 +78,34 @@ async function flash(btn, text) {
   setTimeout(() => (btn.textContent = original), 1500);
 }
 
+let songs = [];
+
+async function loadSongs() {
+  const text = await (await fetch(chrome.runtime.getURL('songs.txt'))).text();
+  songs = text
+    .split('\n')
+    .map((line) => line.match(/^\d+\.\s+(.+?)\s+—\s+(.+)$/))
+    .filter(Boolean)
+    .map(([, title, artist]) => ({ title, artist }));
+}
+
+function showRandomSong() {
+  if (!songs.length) return;
+  const { title, artist } = songs[Math.floor(Math.random() * songs.length)];
+  $('song-title').textContent = title;
+  $('song-title').title = title;
+  $('song-artist').textContent = artist;
+  // Drop " - 2011 Remaster"-style suffixes and extra artists so Spotify search finds the track.
+  const query = `${title.split(' - ')[0]} ${artist.split(',')[0]}`;
+  $('song-play').href = `https://open.spotify.com/search/${encodeURIComponent(query)}`;
+  $('song').hidden = false;
+}
+
 async function init() {
   $('version').textContent = `v${chrome.runtime.getManifest().version}`;
+
+  $('song-shuffle').addEventListener('click', showRandomSong);
+  loadSongs().then(showRandomSong);
 
   const stored = await chrome.storage.sync.get(AUTO_VIEWED_STORAGE_KEY);
   $('auto').checked = Boolean(stored[AUTO_VIEWED_STORAGE_KEY]);

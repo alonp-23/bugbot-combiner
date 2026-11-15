@@ -21,3 +21,7 @@ To update, replace the folder with the new release and click reload on the exten
 ## Customizing
 
 The noise patterns live in `AUTO_VIEWED_PATTERNS` in `content.js`.
+
+## PR soundtrack
+
+The popup suggests a random song from `songs.txt` with a Spotify link. To use your own playlist, replace the file with lines in the form `1. Title — Artist`.

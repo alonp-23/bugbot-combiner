@@ -191,6 +191,32 @@ body {
   flex: 1;
 }
 
+a.btn {
+  text-decoration: none;
+}
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.song-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-title,
+.song-info .hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-title {
+  font-weight: 600;
+}
+
 .toggle {
   display: flex;
   align-items: center;
