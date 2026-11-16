@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+env:
+  CWS_API: https://chromewebstore.googleapis.com
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Sync manifest version with the release tag
+        id: version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          if ! [[ "$version" =~ ^[0-9]+(\.[0-9]+){0,3}$ ]]; then
+            echo "::error::Tag '$TAG' is not a valid Chrome extension version (1-4 dot-separated integers)."
+            exit 1
+          fi
+          jq --arg v "$version" '.version = $v' manifest.json > manifest.tmp && mv manifest.tmp manifest.json
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "zip=bugbot-combiner-$version.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Package extension
+        run: |
+          zip -X -r "${{ steps.version.outputs.zip }}" \
+            manifest.json background.js content.js popup.html popup.js popup.css songs.txt icons/*.png
+          unzip -l "${{ steps.version.outputs.zip }}"
+
+      - name: Attach zip to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "${{ steps.version.outputs.zip }}" --clobber
+
+      - name: Authenticate to Google Cloud
+        id: gcp
+        if: vars.CWS_EXTENSION_ID != ''
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          access_token_lifetime: 600s
+
+      - name: Upload to the Chrome Web Store
+        if: vars.CWS_EXTENSION_ID != ''
+        env:
+          TOKEN: ${{ steps.gcp.outputs.access_token }}
+          ITEM: ${{ env.CWS_API }}/v2/publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_EXTENSION_ID }}
+          UPLOAD: ${{ env.CWS_API }}/upload/v2/publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_EXTENSION_ID }}
+        run: |
+          response=$(curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -T "${{ steps.version.outputs.zip }}" \
+            "$UPLOAD:upload")
+          echo "$response"
+          state=$(jq -r '.uploadState' <<< "$response")
+
+          for _ in $(seq 1 30); do
+            [[ "$state" != "IN_PROGRESS" ]] && break
+            sleep 10
+            state=$(curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "$ITEM:fetchStatus" | jq -r '.lastAsyncUploadState')
+            echo "Upload state: $state"
+          done
+
+          if [[ "$state" != "SUCCEEDED" ]]; then
+            echo "::error::Chrome Web Store upload ended in state '$state'."
+            exit 1
+          fi
+
+      - name: Submit for review
+        if: vars.CWS_EXTENSION_ID != ''
+        env:
+          TOKEN: ${{ steps.gcp.outputs.access_token }}
+          ITEM: ${{ env.CWS_API }}/v2/publishers/${{ vars.CWS_PUBLISHER_ID }}/items/${{ vars.CWS_EXTENSION_ID }}
+        run: |
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"publishType": "DEFAULT_PUBLISH"}' \
+            "$ITEM:publish"
+          echo
+          curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "$ITEM:fetchStatus" | jq .
