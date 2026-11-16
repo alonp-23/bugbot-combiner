@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bugbot Prompt Combiner",
-  "version": "2.5",
+  "version": "2.6",
   "description": "Collects open bot and human review comments on GitHub PRs into copyable prompts, and marks noise files as viewed.",
   "permissions": ["storage", "activeTab"],
   "action": {

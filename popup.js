@@ -198,6 +198,7 @@ async function getLatestRelease() {
 }
 
 async function checkForUpdate() {
+  if (chrome.runtime.getManifest().update_url) return;
   const latest = await getLatestRelease().catch(() => null);
   if (!latest || !isNewer(latest.version, chrome.runtime.getManifest().version)) return;
   $('update-title').textContent = `Update available: ${latest.version}`;
