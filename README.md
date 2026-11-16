@@ -25,3 +25,14 @@ The noise patterns live in `AUTO_VIEWED_PATTERNS` in `content.js`.
 ## PR soundtrack
 
 The popup suggests a random song from `songs.txt` with a Spotify link. To use your own playlist, replace the file with lines in the form `1. Title — Artist`.
+
+## Privacy
+
+Bugbot Prompt Combiner does not collect, store, or share any personal data.
+
+- It runs only on `github.com` pages. It reads review comments and file lists from the pull request you have open so it can show them in the popup, and that content never leaves your browser.
+- The only thing it saves is your "auto-mark noise files" setting and the result of the version check, in Chrome's own extension storage.
+- Its only network request is a version check against this repository's public [GitHub Releases](https://api.github.com/repos/alonp-23/bugbot-combiner/releases/latest), which sends no information about you or your pull requests.
+- It has no analytics, tracking, or ads, and no data is sold or transferred to anyone.
+
+Questions: open an issue in this repository.
