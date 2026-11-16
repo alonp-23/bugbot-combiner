@@ -168,7 +168,48 @@ function showRandomSong() {
   $('song').hidden = false;
 }
 
+const RELEASES_API = 'https://api.github.com/repos/alonp-23/bugbot-combiner/releases/latest';
+const UPDATE_CACHE_KEY = 'latestRelease';
+const UPDATE_CHECK_MS = 60 * 60 * 1000;
+
+function isNewer(latest, current) {
+  const a = latest.replace(/^v/, '').split('.').map(Number);
+  const b = current.split('.').map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) > (b[i] || 0);
+  }
+  return false;
+}
+
+async function getLatestRelease() {
+  const { [UPDATE_CACHE_KEY]: cached } = await chrome.storage.local.get(UPDATE_CACHE_KEY);
+  if (cached && Date.now() - cached.checkedAt < UPDATE_CHECK_MS) return cached;
+  const res = await fetch(RELEASES_API);
+  if (!res.ok) return cached || null;
+  const release = await res.json();
+  const latest = {
+    version: release.tag_name,
+    notesUrl: release.html_url,
+    zipUrl: release.assets?.find((a) => a.name.endsWith('.zip'))?.browser_download_url || release.html_url,
+    checkedAt: Date.now(),
+  };
+  await chrome.storage.local.set({ [UPDATE_CACHE_KEY]: latest });
+  return latest;
+}
+
+async function checkForUpdate() {
+  const latest = await getLatestRelease().catch(() => null);
+  if (!latest || !isNewer(latest.version, chrome.runtime.getManifest().version)) return;
+  $('update-title').textContent = `Update available: ${latest.version}`;
+  $('update-download').href = latest.zipUrl;
+  $('update-notes').href = latest.notesUrl;
+  $('update').hidden = false;
+}
+
 async function init() {
+  $('update-reload').addEventListener('click', () => chrome.runtime.reload());
+  checkForUpdate();
+
   $('version').textContent = `v${chrome.runtime.getManifest().version}`;
 
   $('song-shuffle').addEventListener('click', showRandomSong);

@@ -339,3 +339,15 @@ a.btn {
   padding: 3px 10px;
   font-size: 12px;
 }
+
+.update {
+  background: rgba(35, 134, 54, 0.12);
+}
+
+.link {
+  text-decoration: underline;
+}
+
+.update .song-info .hint {
+  white-space: normal;
+}

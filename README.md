@@ -16,7 +16,7 @@ The toolbar badge shows how many open review comments the current PR has.
 2. Open `chrome://extensions` and turn on **Developer mode**.
 3. Click **Load unpacked** and pick the `bugbot-combiner` folder.
 
-To update, replace the folder with the new release and click reload on the extension card.
+To update: when a new release is out, the popup shows **Update available**. Click **Download**, replace your extension folder with the unzipped one, then click **Reload** — open PR tabs refresh automatically.
 
 ## Customizing
 
