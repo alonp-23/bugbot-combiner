@@ -259,3 +259,83 @@ a.btn {
 .toggle input:checked + .switch::after {
   transform: translateX(12px);
 }
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.empty {
+  padding: 14px 10px;
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+.item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.item summary {
+  padding: 7px 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.item summary::-webkit-details-marker {
+  display: none;
+}
+
+.item summary::before {
+  content: '▸';
+  float: left;
+  margin-right: 6px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.item[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.item-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-meta {
+  margin-left: 16px;
+  color: var(--muted);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item-body {
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.item .row {
+  padding: 0 10px 8px;
+}
+
+.btn.small {
+  padding: 3px 10px;
+  font-size: 12px;
+}

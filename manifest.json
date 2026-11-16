@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bugbot Prompt Combiner",
-  "version": "2.1",
+  "version": "2.2",
   "description": "On a GitHub PR, collects Cursor Bugbot fixes, human review comments, and CodeRabbit comments into copyable blocks, and marks Files changed (all, or just i18n/, *.test.*, help-center/ files — optionally automatically) as viewed/unviewed.",
   "permissions": ["storage", "activeTab"],
   "action": {

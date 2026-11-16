@@ -191,6 +191,7 @@
   function getCommentContext(el) {
     const container =
       el.closest('[id^="issuecomment-"]') ||
+      el.closest('[id^="discussion_r"]') ||
       el.closest('.js-comment') ||
       el.closest('.timeline-comment') ||
       el.closest('.TimelineItem');
@@ -200,7 +201,7 @@
       if (container.id) {
         permalink = `${location.origin}${location.pathname}#${container.id}`;
       }
-      const ts = container.querySelector('a.js-timestamp, a[href*="#issuecomment-"]');
+      const ts = container.querySelector('a.js-timestamp, a[href*="#issuecomment-"], a[href*="#discussion_r"]');
       if (ts && ts.href) permalink = ts.href;
       // Bugbot bodies usually open with a bold/heading bug summary.
       const heading = container.querySelector(
@@ -267,8 +268,18 @@
     return text;
   }
 
+  // New React PR UI: each review thread is an <article> with a Resolve/Unresolve button.
+  function getReactThread(el) {
+    const article = el.closest?.('article');
+    return article?.querySelector('button[aria-label^="Resolve conversation"], button[aria-label^="Unresolve conversation"]')
+      ? article
+      : null;
+  }
+
   // A Bugbot comment whose review thread has been resolved should be skipped.
   function isResolved(el) {
+    const reactThread = getReactThread(el);
+    if (reactThread) return Boolean(reactThread.querySelector('button[aria-label^="Unresolve conversation"]'));
     const thread = el.closest(
       '.js-resolvable-timeline-thread-container, .review-thread-component, [data-resolved]',
     );
@@ -300,6 +311,7 @@
       if (isResolved(el)) continue;
       const container =
         el.closest('[id^="issuecomment-"]') ||
+        el.closest('[id^="discussion_r"]') ||
         el.closest('.js-comment') ||
         el.closest('.timeline-comment') ||
         el.closest('.TimelineItem') ||
@@ -319,6 +331,7 @@
     if (!container) return '';
     const el =
       container.querySelector?.('.author') ||
+      container.querySelector?.('a[class*="AuthorName"]') ||
       container.querySelector?.('[data-hovercard-type="user"]') ||
       container.querySelector?.('a.Link--primary.text-bold');
     return el ? (el.textContent || '').trim() : '';
@@ -335,6 +348,9 @@
 
   // ---------- file + line extraction for inline review comment threads ----------
   function getFileAndLine(threadEl) {
+    const resolveBtn = threadEl.querySelector?.('button[aria-label*="onversation in "]');
+    const m = (resolveBtn?.getAttribute('aria-label') || '').match(/ in (.+), line (\d+)$/);
+    if (m) return { file: m[1], line: m[2] };
     let file = '';
     const pathAncestor = threadEl.closest?.('[data-tagsearch-path], [data-path]');
     if (pathAncestor) {
@@ -369,12 +385,17 @@
     const author = getAuthorName(container);
     const ts = container.querySelector?.('a.js-timestamp, a[href*="#discussion_r"], a[href*="#issuecomment-"]');
     const permalink = (ts && ts.href) || (container.id ? `${location.origin}${location.pathname}#${container.id}` : '');
-    const thread = container.closest?.('.js-resolvable-timeline-thread-container, .review-thread-component');
+    const thread =
+      container.closest?.('.js-resolvable-timeline-thread-container, .review-thread-component') || getReactThread(container);
     return { container, author, permalink, thread };
   }
 
   function getCommentBodies() {
-    return Array.from(document.querySelectorAll('.comment-body'));
+    const legacy = Array.from(document.querySelectorAll('.comment-body'));
+    const react = Array.from(
+      document.querySelectorAll('[id^="issuecomment-"] .markdown-body, [id^="discussion_r"] .markdown-body'),
+    ).filter((el) => !el.closest('.comment-body') && !el.querySelector('.comment-body'));
+    return [...legacy, ...react];
   }
 
   // ---------- collect human reviewer inline comments (file + line required) ----------
@@ -472,9 +493,29 @@
     return Object.fromEntries(
       Object.entries(items).map(([key, list]) => [
         key,
-        { count: list.length, text: list.length ? Builders[key](list) : '' },
+        {
+          count: list.length,
+          text: list.length ? Builders[key](list) : '',
+          items: list.map((it) => toPreview(key, it)),
+        },
       ]),
     );
+  }
+
+  function firstLine(text) {
+    return (text || '').split('\n').find((l) => l.trim())?.trim().slice(0, 120) || '';
+  }
+
+  function toPreview(key, it) {
+    const loc = locationLabel(it);
+    const title = (key === 'bugbot' && it.title) || firstLine(it.body);
+    return {
+      title,
+      meta: [key === 'human' ? it.author : '', loc].filter(Boolean).join(' · '),
+      body: it.body.startsWith(title) ? it.body.slice(title.length).trim() || it.body : it.body,
+      permalink: it.permalink,
+      text: Builders[key]([it]),
+    };
   }
 
   // ---------- Files changed: mark viewed / unviewed ----------

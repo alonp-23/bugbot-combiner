@@ -45,9 +45,78 @@ function renderTabs() {
     }),
   );
   const text = datasets[active]?.text || '';
-  $('output').value = text || 'Nothing to copy on this PR.';
-  $('copy').disabled = !text;
+  renderList(datasets[active]?.items || []);
+  $('output').hidden = true;
+  $('copy').hidden = !text;
   $('diagnostics').hidden = active !== 'bugbot';
+}
+
+const EmptyMessages = {
+  bugbot: 'No open Bugbot findings on this PR.',
+  human: 'No open review comments from people.',
+  coderabbit: 'No open CodeRabbit comments.',
+};
+
+function renderList(items) {
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = EmptyMessages[active];
+    $('list').replaceChildren(empty);
+    return;
+  }
+  $('list').replaceChildren(
+    ...items.map((item, i) => {
+      const details = document.createElement('details');
+      details.className = 'item';
+      details.open = items.length === 1;
+
+      const summary = document.createElement('summary');
+      const title = document.createElement('div');
+      title.className = 'item-title';
+      title.textContent = `${i + 1}. ${item.title || 'Comment'}`;
+      summary.append(title);
+      if (item.meta) {
+        const meta = document.createElement('div');
+        meta.className = 'item-meta';
+        meta.textContent = item.meta;
+        summary.append(meta);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'item-body';
+      body.textContent = item.body;
+
+      const actions = document.createElement('div');
+      actions.className = 'row end';
+      if (item.permalink) {
+        const open = document.createElement('a');
+        open.className = 'btn ghost small';
+        open.href = item.permalink;
+        open.target = '_blank';
+        open.textContent = 'Open';
+        actions.append(open);
+      }
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn small';
+      copy.textContent = 'Copy';
+      copy.addEventListener('click', () => copyText(item.text, copy));
+      actions.append(copy);
+
+      details.append(summary, body, actions);
+      return details;
+    }),
+  );
+}
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    flash(btn, 'Copied!');
+  } catch (_) {
+    flash(btn, 'Copy failed');
+  }
 }
 
 function renderMark({ hasDiff, mark }) {
@@ -136,19 +205,13 @@ async function init() {
   renderTabs();
   renderMark(state);
 
-  $('copy').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(datasets[active].text);
-      flash($('copy'), 'Copied!');
-    } catch (_) {
-      $('output').select();
-      flash($('copy'), 'Select & ⌘C');
-    }
-  });
+  $('copy').addEventListener('click', () => copyText(datasets[active].text, $('copy')));
 
   $('diagnostics').addEventListener('click', async () => {
     const res = await send({ type: 'diagnostics' });
-    if (res?.diagnostics) $('output').value = res.diagnostics;
+    if (!res?.diagnostics) return;
+    $('output').value = res.diagnostics;
+    $('output').hidden = false;
   });
 
   document.querySelectorAll('[data-mode]').forEach((btn) =>
