@@ -1,8 +1,7 @@
 const AUTO_VIEWED_STORAGE_KEY = 'autoMarkNoiseViewed';
 const TABS = [
-  { key: 'bugbot', label: 'Bugbot' },
-  { key: 'human', label: 'Human' },
-  { key: 'coderabbit', label: 'CodeRabbit' },
+  { key: 'bots', label: 'Bots' },
+  { key: 'humans', label: 'Humans' },
 ];
 const MarkLabels = {
   noise: 'i18n / tests / help-center',
@@ -13,7 +12,7 @@ const MarkLabels = {
 const $ = (id) => document.getElementById(id);
 let tabId;
 let datasets = {};
-let active = 'bugbot';
+let active = 'bots';
 let pollTimer;
 
 function showMessage(text) {
@@ -48,13 +47,12 @@ function renderTabs() {
   renderList(datasets[active]?.items || []);
   $('output').hidden = true;
   $('copy').hidden = !text;
-  $('diagnostics').hidden = active !== 'bugbot';
+  $('diagnostics').hidden = active !== 'bots';
 }
 
 const EmptyMessages = {
-  bugbot: 'No open Bugbot findings on this PR.',
-  human: 'No open review comments from people.',
-  coderabbit: 'No open CodeRabbit comments.',
+  bots: 'No open bot comments on this PR.',
+  humans: 'No open review comments from people.',
 };
 
 function renderList(items) {
@@ -200,7 +198,7 @@ async function init() {
   }
 
   datasets = state.datasets;
-  active = TABS.find(({ key }) => datasets[key].count)?.key || 'bugbot';
+  active = TABS.find(({ key }) => datasets[key].count)?.key || 'bots';
   $('content').hidden = false;
   renderTabs();
   renderMark(state);

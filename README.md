@@ -4,7 +4,7 @@
 
 A Chrome extension for reviewing GitHub pull requests. Click the toolbar icon on any PR to:
 
-- **Combine review comments** — Cursor Bugbot findings, unresolved human review comments, and CodeRabbit comments, each merged into one copyable prompt.
+- **Review comments** — every open comment, split into **Bots** (Cursor Bugbot, CodeRabbit, Copilot, any `[bot]` account) and **Humans**. Expand a comment to preview it, copy one, or copy them all as a single prompt. Works on both the Conversation and Files changed tabs.
 - **Mark files as viewed** — mark all files viewed / unviewed, or only the noise (`i18n/`, `*.test.*`, `help-center/`).
 - **Auto-mark noise** — toggle it on and noise files are marked viewed whenever you open a PR's Files changed tab.
 

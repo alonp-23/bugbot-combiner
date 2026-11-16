@@ -268,254 +268,155 @@
     return text;
   }
 
-  // New React PR UI: each review thread is an <article> with a Resolve/Unresolve button.
-  function getReactThread(el) {
-    const article = el.closest?.('article');
-    return article?.querySelector('button[aria-label^="Resolve conversation"], button[aria-label^="Unresolve conversation"]')
-      ? article
-      : null;
-  }
+  // ---------- comment scan (classic UI, new Conversation UI, and Files changed) ----------
+  // Every comment lives in an element whose id carries its database id.
+  const COMMENT_ID = /^(issuecomment-|discussion_r|r)(\d+)$/;
+  const LEGACY_THREAD = '.js-resolvable-timeline-thread-container, .review-thread-component';
+  const KNOWN_BOTS = /^(coderabbitai|cursor|copilot|github-actions|dependabot|renovate|sonarcloud|codecov|vercel|linear|sentry|greptile|graphite-app)$/i;
 
-  // A Bugbot comment whose review thread has been resolved should be skipped.
-  function isResolved(el) {
-    const reactThread = getReactThread(el);
-    if (reactThread) return Boolean(reactThread.querySelector('button[aria-label^="Unresolve conversation"]'));
-    const thread = el.closest(
-      '.js-resolvable-timeline-thread-container, .review-thread-component, [data-resolved]',
+  function getCommentUnits() {
+    const units = Array.from(document.querySelectorAll('[id]')).filter(
+      (el) => COMMENT_ID.test(el.id) && getBodyEl(el),
     );
-    if (thread) {
-      if (thread.getAttribute('data-resolved') === 'true') return true;
-      if (/(^|\s)(is-resolved|resolved)(\s|$)/i.test(thread.className) && !/unresolved/i.test(thread.className)) {
-        return true;
-      }
-    }
-    // Fallback: a "resolved this conversation" / "Resolved" marker in an ancestor.
-    let node = el;
-    for (let i = 0; i < 10 && node; i++, node = node.parentElement) {
-      const toggler = node.querySelector?.('.js-resolvable-thread-toggler, .timeline-comment-label');
-      if (toggler && /resolved/i.test(toggler.textContent || '')) return true;
-      if (/marked this conversation as resolved/i.test(node.textContent || '') && node.children.length < 12) {
-        return true;
-      }
-    }
-    return false;
+    return units.filter((el) => !units.some((other) => other !== el && el.contains(other)));
   }
 
-  function findBugbotBugs() {
-    const controls = Array.from(
-      document.querySelectorAll('a, button, [role="button"], summary, img'),
-    ).filter(looksLikeFixControl);
-    const seenContainers = new Set();
-    const bugs = [];
-    for (const el of controls) {
-      if (isResolved(el)) continue;
-      const container =
-        el.closest('[id^="issuecomment-"]') ||
-        el.closest('[id^="discussion_r"]') ||
-        el.closest('.js-comment') ||
-        el.closest('.timeline-comment') ||
-        el.closest('.TimelineItem') ||
-        el.closest('[class*="comment"]');
-      if (!container || seenContainers.has(container)) continue;
-      seenContainers.add(container);
-      const { permalink, title } = getCommentContext(el);
-      const body = extractCommentBody(container);
-      if (!body) continue;
-      bugs.push({ permalink, title, body });
-    }
-    return bugs;
+  function getBodyEl(unit) {
+    return unit.querySelector('.comment-body') || unit.querySelector('.markdown-body');
   }
 
-  // ---------- author / bot detection ----------
-  function getAuthorName(container) {
-    if (!container) return '';
+  function getAuthorName(unit) {
     const el =
-      container.querySelector?.('.author') ||
-      container.querySelector?.('a[class*="AuthorName"]') ||
-      container.querySelector?.('[data-hovercard-type="user"]') ||
-      container.querySelector?.('a.Link--primary.text-bold');
-    return el ? (el.textContent || '').trim() : '';
+      unit.querySelector('a[class*="AuthorName"]') ||
+      unit.querySelector('.author') ||
+      unit.querySelector('[data-hovercard-type="user"]') ||
+      unit.querySelector('a.Link--primary.text-bold');
+    return (el?.textContent || '').trim();
   }
 
-  // GitHub App / bot accounts are always suffixed "[bot]" — a stable, well-documented convention.
+  // GitHub App accounts are suffixed "[bot]"; some UIs drop the suffix, so also match known names.
   function isBotAuthor(name) {
-    return /\[bot\]\s*$/i.test(name || '');
+    return /\[bot\]\s*$/i.test(name) || KNOWN_BOTS.test(name.trim());
   }
 
-  function isCoderabbitAuthor(name) {
-    return /^coderabbitai(\[bot\])?$/i.test((name || '').trim());
+  function isResolveButton(btn) {
+    return /^(un)?resolve\b/i.test(btn.getAttribute('aria-label') || '');
   }
 
-  // ---------- file + line extraction for inline review comment threads ----------
-  function getFileAndLine(threadEl) {
-    const resolveBtn = threadEl.querySelector?.('button[aria-label*="onversation in "]');
-    const m = (resolveBtn?.getAttribute('aria-label') || '').match(/ in (.+), line (\d+)$/);
-    if (m) return { file: m[1], line: m[2] };
-    let file = '';
-    const pathAncestor = threadEl.closest?.('[data-tagsearch-path], [data-path]');
-    if (pathAncestor) {
-      file = pathAncestor.getAttribute('data-tagsearch-path') || pathAncestor.getAttribute('data-path') || '';
+  // Nearest ancestor holding the thread's Resolve / Unresolve button (new UIs), or the classic thread box.
+  function getThread(unit) {
+    if (unit.id.startsWith('issuecomment-')) return null;
+    const legacy = unit.closest(LEGACY_THREAD);
+    if (legacy) return legacy;
+    let node = unit.parentElement;
+    for (let i = 0; i < 12 && node && node !== document.body; i++, node = node.parentElement) {
+      if (Array.from(node.querySelectorAll('button[aria-label]')).some(isResolveButton)) return node;
     }
-    const diffLink = threadEl.querySelector?.('a[href*="#diff-"]');
-    if (!file && diffLink) file = (diffLink.textContent || '').trim();
+    return null;
+  }
 
-    let line = '';
-    const lineCells = threadEl.querySelectorAll?.('[data-line-number]') || [];
-    const nums = Array.from(lineCells)
+  function isResolved(thread) {
+    const buttons = Array.from(thread.querySelectorAll('button[aria-label]')).filter(isResolveButton);
+    if (buttons.length) return buttons.some((b) => /^unresolve/i.test(b.getAttribute('aria-label')));
+    if (thread.getAttribute('data-resolved') === 'true') return true;
+    if (/(^|\s)(is-resolved|resolved)(\s|$)/i.test(thread.className)) return true;
+    const toggler = thread.querySelector('.js-resolvable-thread-toggler, .timeline-comment-label');
+    return Boolean(toggler && /resolved/i.test(toggler.textContent || ''));
+  }
+
+  function getFileAndLine(unit, thread) {
+    const labelled = Array.from(thread?.querySelectorAll('button[aria-label]') || [])
+      .map((b) => b.getAttribute('aria-label').match(/ in (.+), line (\d+)$/))
+      .find(Boolean);
+    if (labelled) return { file: labelled[1], line: labelled[2] };
+
+    const entry = unit.closest('[class*="PullRequestDiffsList-module__diffEntry"], [class*="diffEntry"]');
+    const lineCell = unit.closest('td[data-line-number]');
+    if (entry) return { file: getEntryPath(entry), line: lineCell?.getAttribute('data-line-number') || '' };
+
+    const pathAncestor = unit.closest('[data-tagsearch-path], [data-path]');
+    const diffLink = thread?.querySelector('a[href*="#diff-"]');
+    const file =
+      pathAncestor?.getAttribute('data-tagsearch-path') ||
+      pathAncestor?.getAttribute('data-path') ||
+      (diffLink?.textContent || '').trim();
+    const nums = Array.from(thread?.querySelectorAll('[data-line-number]') || [])
       .map((el) => parseInt(el.getAttribute('data-line-number'), 10))
-      .filter((n) => Number.isFinite(n) && n > 0);
-    if (nums.length) line = String(Math.max(...nums));
-    if (!line && diffLink) {
-      const m = (diffLink.getAttribute('href') || '').match(/[RL](\d+)$/);
-      if (m) line = m[1];
-    }
-
-    return { file, line };
+      .filter((n) => n > 0);
+    return { file, line: nums.length ? String(Math.max(...nums)) : '' };
   }
 
-  // ---------- collect one "comment unit" (author/permalink/thread) for a comment body ----------
-  function getCommentUnit(bodyEl) {
-    const container =
-      bodyEl.closest('[id^="issuecomment-"]') ||
-      bodyEl.closest('[id^="discussion_r"]') ||
-      bodyEl.closest('.js-comment') ||
-      bodyEl.closest('.timeline-comment') ||
-      bodyEl.closest('.TimelineItem') ||
-      bodyEl.parentElement;
-    const author = getAuthorName(container);
-    const ts = container.querySelector?.('a.js-timestamp, a[href*="#discussion_r"], a[href*="#issuecomment-"]');
-    const permalink = (ts && ts.href) || (container.id ? `${location.origin}${location.pathname}#${container.id}` : '');
-    const thread =
-      container.closest?.('.js-resolvable-timeline-thread-container, .review-thread-component') || getReactThread(container);
-    return { container, author, permalink, thread };
+  function getPermalink(unit) {
+    const [, kind, id] = unit.id.match(COMMENT_ID);
+    const pullPath = location.pathname.match(/^\/[^/]+\/[^/]+\/pull\/\d+/)[0];
+    const anchor = kind === 'issuecomment-' ? `issuecomment-${id}` : `discussion_r${id}`;
+    return `${location.origin}${pullPath}#${anchor}`;
   }
 
-  function getCommentBodies() {
-    const legacy = Array.from(document.querySelectorAll('.comment-body'));
-    const react = Array.from(
-      document.querySelectorAll('[id^="issuecomment-"] .markdown-body, [id^="discussion_r"] .markdown-body'),
-    ).filter((el) => !el.closest('.comment-body') && !el.querySelector('.comment-body'));
-    return [...legacy, ...react];
-  }
-
-  // ---------- collect human reviewer inline comments (file + line required) ----------
-  function findHumanReviewComments() {
-    const results = [];
-    const seen = new Set();
-    for (const bodyEl of getCommentBodies()) {
-      const { container, author, permalink, thread } = getCommentUnit(bodyEl);
-      if (!thread) continue; // only inline review comments carry file/line context
-      if (isResolved(thread)) continue;
-      if (!author || isBotAuthor(author)) continue;
-      const body = extractCommentBody(container);
-      if (!body) continue;
-      const { file, line } = getFileAndLine(thread);
-      const key = permalink || `${file}:${line}:${body.slice(0, 100)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      results.push({ file, line, author, body, permalink });
-    }
-    return results;
-  }
-
-  // ---------- collect CodeRabbit comments (inline review comments + top-level PR comments) ----------
-  function findCoderabbitComments() {
-    const results = [];
-    const seen = new Set();
-    for (const bodyEl of getCommentBodies()) {
-      const { container, author, permalink, thread } = getCommentUnit(bodyEl);
-      if (!isCoderabbitAuthor(author)) continue;
-      if (thread && isResolved(thread)) continue;
-      const body = extractCommentBody(container);
-      if (!body) continue;
-      const { file, line } = thread ? getFileAndLine(thread) : { file: '', line: '' };
-      const key = permalink || `${file}:${line}:${body.slice(0, 100)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      results.push({ file, line, body, permalink });
-    }
-    return results;
-  }
-
-  // ---------- combined output ----------
-  function buildCombined(items) {
-    const intro =
-      items.length > 1
-        ? `Please fix the following ${items.length} issues found by Cursor Bugbot in this PR:\n`
-        : '';
-    const blocks = items.map((it, i) => {
-      const header = `### Bug ${i + 1}${it.title ? `: ${it.title}` : ''}`;
-      const link = it.permalink ? `Source: ${it.permalink}` : '';
-      return [header, link, '', it.body].filter(Boolean).join('\n');
-    });
-    return [intro, blocks.join('\n\n---\n\n')].filter(Boolean).join('\n');
-  }
-
-  function locationLabel(it) {
-    return it.file ? `${it.file}${it.line ? `:${it.line}` : ''}` : '';
-  }
-
-  function buildHumanReviewOutput(items) {
-    const intro = items.length ? `Human reviewer comments on this PR (${items.length}):\n` : '';
-    const blocks = items.map((it, i) => {
-      const loc = locationLabel(it);
-      const header = `### Comment ${i + 1}${it.author ? ` — ${it.author}` : ''}${loc ? ` (${loc})` : ''}`;
-      const link = it.permalink ? `Source: ${it.permalink}` : '';
-      return [header, link, '', it.body].filter(Boolean).join('\n');
-    });
-    return [intro, blocks.join('\n\n---\n\n')].filter(Boolean).join('\n');
-  }
-
-  function buildCoderabbitOutput(items) {
-    const intro = items.length ? `CodeRabbit comments on this PR (${items.length}):\n` : '';
-    const blocks = items.map((it, i) => {
-      const loc = locationLabel(it);
-      const header = `### CodeRabbit ${i + 1}${loc ? ` (${loc})` : ''}`;
-      const link = it.permalink ? `Source: ${it.permalink}` : '';
-      return [header, link, '', it.body].filter(Boolean).join('\n');
-    });
-    return [intro, blocks.join('\n\n---\n\n')].filter(Boolean).join('\n');
-  }
-
-  // ---------- datasets for the popup ----------
-  const Builders = {
-    bugbot: buildCombined,
-    human: buildHumanReviewOutput,
-    coderabbit: buildCoderabbitOutput,
-  };
-
-  function buildDatasets() {
-    const items = {
-      bugbot: findBugbotBugs(),
-      human: findHumanReviewComments(),
-      coderabbit: findCoderabbitComments(),
-    };
-    return Object.fromEntries(
-      Object.entries(items).map(([key, list]) => [
-        key,
-        {
-          count: list.length,
-          text: list.length ? Builders[key](list) : '',
-          items: list.map((it) => toPreview(key, it)),
-        },
-      ]),
-    );
+  function getTitle(bodyEl, body) {
+    const heading = bodyEl.querySelector('h1, h2, h3, h4');
+    return (heading?.textContent || '').trim().slice(0, 120) || firstLine(body);
   }
 
   function firstLine(text) {
     return (text || '').split('\n').find((l) => l.trim())?.trim().slice(0, 120) || '';
   }
 
-  function toPreview(key, it) {
+  function collectComments() {
+    const seen = new Set();
+    const result = { bots: [], humans: [] };
+    for (const unit of getCommentUnits()) {
+      const permalink = getPermalink(unit);
+      if (seen.has(permalink)) continue;
+      seen.add(permalink);
+      const author = getAuthorName(unit);
+      if (!author) continue;
+      const thread = getThread(unit);
+      if (thread && isResolved(thread)) continue;
+      const bot = isBotAuthor(author);
+      if (!bot && !thread) continue;
+      const bodyEl = getBodyEl(unit);
+      const body = extractCommentBody(unit);
+      if (!body) continue;
+      const { file, line } = thread ? getFileAndLine(unit, thread) : { file: '', line: '' };
+      result[bot ? 'bots' : 'humans'].push({ author, file, line, permalink, body, title: getTitle(bodyEl, body) });
+    }
+    return result;
+  }
+
+  // ---------- prompt output ----------
+  function locationLabel(it) {
+    return it.file ? `${it.file}${it.line ? `:${it.line}` : ''}` : '';
+  }
+
+  function formatComment(it, i) {
     const loc = locationLabel(it);
-    const title = (key === 'bugbot' && it.title) || firstLine(it.body);
-    return {
-      title,
-      meta: [key === 'human' ? it.author : '', loc].filter(Boolean).join(' · '),
-      body: it.body.startsWith(title) ? it.body.slice(title.length).trim() || it.body : it.body,
-      permalink: it.permalink,
-      text: Builders[key]([it]),
-    };
+    const header = `### ${i + 1}. ${it.author}${loc ? ` (${loc})` : ''}`;
+    return [header, it.permalink ? `Source: ${it.permalink}` : '', '', it.body].filter(Boolean).join('\n');
+  }
+
+  const Intros = {
+    bots: (n) => `Please address the following ${n} bot review comment(s) on this PR:\n`,
+    humans: (n) => `Please address the following ${n} reviewer comment(s) on this PR:\n`,
+  };
+
+  function buildDatasets() {
+    return Object.fromEntries(
+      Object.entries(collectComments()).map(([key, list]) => [
+        key,
+        {
+          count: list.length,
+          text: list.length ? [Intros[key](list.length), list.map(formatComment).join('\n\n---\n\n')].join('\n') : '',
+          items: list.map((it) => ({
+            title: it.title,
+            meta: [it.author, locationLabel(it)].filter(Boolean).join(' · '),
+            body: it.body.startsWith(it.title) ? it.body.slice(it.title.length).trim() || it.body : it.body,
+            permalink: it.permalink,
+            text: formatComment(it, 0),
+          })),
+        },
+      ]),
+    );
   }
 
   // ---------- Files changed: mark viewed / unviewed ----------
