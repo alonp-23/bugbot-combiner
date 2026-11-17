@@ -12,11 +12,9 @@ The toolbar badge shows how many open review comments the current PR has.
 
 ## Install
 
-1. Download the latest zip from [Releases](../../releases) and unzip it somewhere permanent.
-2. Open `chrome://extensions` and turn on **Developer mode**.
-3. Click **Load unpacked** and pick the `bugbot-combiner` folder.
+Install it from the [Chrome Web Store](https://chromewebstore.google.com/detail/gcnbbebfeojckbdpghjegdiidpkfcnpb). Chrome keeps it up to date automatically.
 
-To update: when a new release is out, the popup shows **Update available**. Click **Download**, replace your extension folder with the unzipped one, then click **Reload** — open PR tabs refresh automatically.
+To run it from source instead: clone this repo, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the `bugbot-combiner` folder.
 
 ## Customizing
 
@@ -31,8 +29,8 @@ The popup suggests a random song from `songs.txt` with a Spotify link. To use yo
 Bugbot Prompt Combiner does not collect, store, or share any personal data.
 
 - It runs only on `github.com` pages. It reads review comments and file lists from the pull request you have open so it can show them in the popup, and that content never leaves your browser.
-- The only thing it saves is your "auto-mark noise files" setting and the result of the version check, in Chrome's own extension storage.
-- Its only network request is a version check against this repository's public [GitHub Releases](https://api.github.com/repos/alonp-23/bugbot-combiner/releases/latest), which sends no information about you or your pull requests.
+- The only thing it saves is your "auto-mark noise files" setting, in Chrome's own extension storage.
+- It makes no network requests of its own.
 - It has no analytics, tracking, or ads, and no data is sold or transferred to anyone.
 
 Questions: open an issue in this repository.
