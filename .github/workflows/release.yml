@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 concurrency:
   group: release-${{ github.event.release.tag_name }}
@@ -53,8 +52,7 @@ jobs:
         if: vars.CWS_EXTENSION_ID != ''
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
           token_format: access_token
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
           access_token_lifetime: 600s
